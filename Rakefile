@@ -17,8 +17,8 @@ Jeweler::Tasks.new do |gem|
   gem.name = "periodic-scheduler"
   gem.homepage = "http://github.com/jpastuszek/periodic-scheduler"
   gem.license = "MIT"
-  gem.summary = %Q{TODO: one-line summary of your gem}
-  gem.description = %Q{TODO: longer description of your gem}
+  gem.summary = "Scheduler for periodic tasks."
+  gem.description = "Controls execution of periodic scheduled tasks."
   gem.email = "jpastuszek@gmail.com"
   gem.authors = ["Jakub Pastuszek"]
   # dependencies defined in Gemfile
