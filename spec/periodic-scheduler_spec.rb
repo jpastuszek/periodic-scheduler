@@ -110,7 +110,7 @@ describe PeriodicScheduler do
 
   it "should compensate for wait function jitter" do
     jitter = [1, 0, 5, -1, 0.5, -0.2, 0, 0, 0]
-    @wait = lambda{|t| 
+    @options[:wait_function] = lambda{|t| 
       j = jitter.shift
       #puts "time is: #{@time_now}"
       @time_now += t + j
@@ -156,7 +156,7 @@ describe PeriodicScheduler do
 
   it "should keep average scheduling precision over longer time" do
     srand(100) # make rand deterministic
-    @wait = lambda{|t| 
+    @options[:wait_function] = lambda{|t| 
       j = (rand - 0.5) * 10
       @time_now += t + j
     }
@@ -291,7 +291,7 @@ describe PeriodicScheduler do
       @got_event.call(3)
     end
 
-    @wait.call(35)
+    @options[:wait_function].call(35)
 
     s.wait_events.should
     @got_events.should == [1, 2]
@@ -308,7 +308,7 @@ describe PeriodicScheduler do
       @got_event.call(1)
     end
 
-    @wait.call(35)
+    @options[:wait_function].call(35)
 
     s.wait_events.should
     @got_events.should == [1]
@@ -328,7 +328,7 @@ describe PeriodicScheduler do
       @got_event.call(2)
     end
 
-    @wait.call(35)
+    @options[:wait_function].call(35)
 
     errors = s.wait_events
     errors.should_not be_empty

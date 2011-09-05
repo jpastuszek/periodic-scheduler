@@ -3,6 +3,7 @@ require 'set'
 
 class PeriodicScheduler
   class MissedScheduleError < RuntimeError; end
+  class EmptyScheduleError < RuntimeError; end
 
   class Event
     attr_reader :period
@@ -93,7 +94,7 @@ class PeriodicScheduler
     process_unsheduled_events
 
     earliest_quant = @events.keys.sort[0]
-    # no more events left
+    #raise EmptyScheduleError, "no events scheduled" unless earliest_quant
     return nil unless earliest_quant
 
     errors = []
