@@ -34,6 +34,7 @@ describe PeriodicScheduler do
     end
 
     @got_events.should == []
+    s.empty?.should == false
 
     s.wait_events
     @got_events.should == [1, 2]
@@ -43,12 +44,7 @@ describe PeriodicScheduler do
     @got_events.should == [1, 2, 3]
     @time_now.should == 20.0
 
-    # They should not get resheduled by default
-    s.wait_events
-    @got_events.should == [1, 2, 3]
-
-    s.wait_events
-    @got_events.should == [1, 2, 3]
+    s.empty?.should == true
   end
 
   it "should reschedule resheduable tasks" do
@@ -232,11 +228,11 @@ describe PeriodicScheduler do
     @got_events.should == [1, 2, 3, 1, 3]
     @time_now.should == 50
 
+    s.empty?.should == false
+
     s.unschedule_group("g2")
 
-    s.wait_events.should be_nil
-    @got_events.should == [1, 2, 3, 1, 3]
-    @time_now.should == 50
+    s.empty?.should == true
   end
 
   it "should support unscheduling of all events within a group from other event" do
@@ -367,13 +363,18 @@ describe PeriodicScheduler, "wait_events" do
     errors[0].to_s.should == "test"
   end
 
-  it "should return nil if there are no events left to process" do
+  it "should raise PeriodicScheduler::EmptyScheduleError if there are no events left to process" do
     s = PeriodicScheduler.new(5.0, @options)
 
     s.schedule(12) {}
 
-    s.wait_events.should_not be_nil
-    s.wait_events.should be_nil
+    lambda {
+      s.wait_events
+    }.should_not raise_error
+
+    lambda {
+      s.wait_events
+    }.should raise_error PeriodicScheduler::EmptyScheduleError
   end
 end
 

@@ -94,8 +94,7 @@ class PeriodicScheduler
     process_unsheduled_events
 
     earliest_quant = @events.keys.sort[0]
-    #raise EmptyScheduleError, "no events scheduled" unless earliest_quant
-    return nil unless earliest_quant
+    raise EmptyScheduleError, "no events scheduled" unless earliest_quant
 
     errors = []
 
@@ -134,6 +133,13 @@ class PeriodicScheduler
     end
     
     errors
+  end
+
+  def empty?
+    # do the cleanup
+    process_unsheduled_events
+
+    @events.empty?
   end
 
   private
