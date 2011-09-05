@@ -90,7 +90,18 @@ class PeriodicScheduler
     @event_groups_to_unschedule << group
   end
 
-  def wait_events
+  def run!
+    begin
+      loop do
+        run.each do |error|
+          yield error if block_given?
+        end
+      end
+    rescue EmptyScheduleError
+    end
+  end
+
+  def run
     process_unsheduled_events
 
     earliest_quant = @events.keys.sort[0]
@@ -114,9 +125,9 @@ class PeriodicScheduler
 
     qnow = quantized_now
     quants = @events.keys.select{|k| k <= qnow}.sort
-    # It may happen that wait returned qucker that it should
+    # It may happen that wait returned qucker than it should
     if quants.empty?
-      return wait_events 
+      return run 
     end
 
     quants.each do |q|
@@ -136,7 +147,7 @@ class PeriodicScheduler
   end
 
   def empty?
-    # do the cleanup
+    # do the cleanup - this may be causing problems!
     process_unsheduled_events
 
     @events.empty?

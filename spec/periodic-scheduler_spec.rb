@@ -36,11 +36,11 @@ describe PeriodicScheduler do
     @got_events.should == []
     s.empty?.should == false
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 2]
     @time_now.should == 10.0
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 2, 3]
     @time_now.should == 20.0
 
@@ -56,15 +56,15 @@ describe PeriodicScheduler do
 
     @got_events.should == []
 
-    s.wait_events
+    s.run
     @got_events.should == [1]
     @time_now.should == 15.0
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 1]
     @time_now.should == 30
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 1, 1]
     @time_now.should == 45
   end
@@ -79,27 +79,27 @@ describe PeriodicScheduler do
 
     @got_events.should == []
 
-    s.wait_events
+    s.run
     @got_events.should == [1]
     @time_now.should == 10
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 1]
     @time_now.should == 20
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 1, 1]
     @time_now.should == 35
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 1, 1, 1]
     @time_now.should == 45
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 1, 1, 1, 1]
     @time_now.should == 60
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 1, 1, 1, 1, 1]
     @time_now.should == 70
   end
@@ -121,31 +121,31 @@ describe PeriodicScheduler do
 
     @got_events.should == []
 
-    s.wait_events
+    s.run
     @got_events.should == [1]
     @time_now.should == 11
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 1]
     @time_now.should == 20
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 1, 1]
     @time_now.should == 40
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 1, 1, 1]
     @time_now.should == 45.5
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 1, 1, 1, 1]
     @time_now.should == 60
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 1, 1, 1, 1, 1]
     @time_now.should == 70.0
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 1, 1, 1, 1, 1, 1]
     @time_now.should == 80.0
   end
@@ -177,7 +177,7 @@ describe PeriodicScheduler do
       ev2_last = @time_now
     end
 
-    10000.times{ s.wait_events }
+    10000.times{ s.run }
     
     (ev1.inject(0){|v, s| v + s} / ev1.length).should be_within(0.001).of(ev1_val)
     (ev2.inject(0){|v, s| v + s} / ev2.length).should be_within(0.001).of(ev2_val)
@@ -206,25 +206,25 @@ describe PeriodicScheduler do
 
     @got_events.should == []
 
-    s.wait_events
+    s.run
     @got_events.should == [1]
     @time_now.should == 15
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 2]
     @time_now.should == 20
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 2, 3]
     @time_now.should == 25
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 2, 3, 1]
     @time_now.should == 30
 
     s.unschedule_group("g1")
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 2, 3, 1, 3]
     @time_now.should == 50
 
@@ -257,17 +257,17 @@ describe PeriodicScheduler do
 
     @got_events.should == []
 
-    s.wait_events
+    s.run
     @got_events.should == [1, 2, 3]
     @time_now.should == 1
 
     # They will get executed this time
-    s.wait_events
+    s.run
     @got_events.should == [1, 2, 3, 4, 1, 2, 3]
     @time_now.should == 2
 
     # They should be not rescheduled and gone
-    s.wait_events
+    s.run
     @got_events.should == [1, 2, 3, 4, 1, 2, 3, 1]
     @time_now.should == 3
   end
@@ -289,10 +289,10 @@ describe PeriodicScheduler do
 
     @options[:wait_function].call(35)
 
-    s.wait_events.should
+    s.run.should
     @got_events.should == [1, 2]
 
-    s.wait_events.should
+    s.run.should
     @got_events.should == [1, 2, 3]
   end
 
@@ -306,10 +306,10 @@ describe PeriodicScheduler do
 
     @options[:wait_function].call(35)
 
-    s.wait_events.should
+    s.run.should
     @got_events.should == [1]
 
-    s.wait_events.should
+    s.run.should
     @got_events.should == [1, 1]
   end
 
@@ -326,55 +326,95 @@ describe PeriodicScheduler do
 
     @options[:wait_function].call(35)
 
-    errors = s.wait_events
+    errors = s.run
     errors.should_not be_empty
     errors[0].class.should == PeriodicScheduler::MissedScheduleError
     @got_events.should == [1, 2]
   end
 
-end
+  describe "run" do
+    it "should handle events call exceptions and return them" do
+      s = PeriodicScheduler.new(5.0, @options)
 
-describe PeriodicScheduler, "wait_events" do
-  before :each do
-    @time_now = 0
-    @options = {
-      :time_source => lambda{@time_now},
-      :wait_function => lambda{|t| 
-        @time_now += t
-      }
-    }
-  end
+      s.schedule(12, true) do
+        fail "test"
+      end
 
-  it "should handle events call exceptions and return them" do
-    s = PeriodicScheduler.new(5.0, @options)
+      errors = nil
 
-    s.schedule(12, true) do
-      fail "test"
+      lambda {
+        errors = s.run
+      }.should_not raise_exception
+
+      errors.should have(1).error
+      errors[0].should be_kind_of RuntimeError
+      errors[0].to_s.should == "test"
     end
 
-    errors = nil
+    it "should raise PeriodicScheduler::EmptyScheduleError if there are no events left to process" do
+      s = PeriodicScheduler.new(5.0, @options)
 
-    lambda {
-      errors = s.wait_events
-    }.should_not raise_exception
+      s.schedule(12) {}
 
-    errors.should have(1).error
-    errors[0].should be_kind_of RuntimeError
-    errors[0].to_s.should == "test"
+      lambda {
+        s.run
+      }.should_not raise_error
+
+      lambda {
+        s.run
+      }.should raise_error PeriodicScheduler::EmptyScheduleError
+    end
   end
 
-  it "should raise PeriodicScheduler::EmptyScheduleError if there are no events left to process" do
-    s = PeriodicScheduler.new(5.0, @options)
+  describe "#run!" do
+    it "should run schedule until there is no more events sheduled" do
+      s = PeriodicScheduler.new(5.0, @options)
 
-    s.schedule(12) {}
+      s.schedule(5) do
+        @got_event.call(1)
+      end
 
-    lambda {
-      s.wait_events
-    }.should_not raise_error
+      s.schedule(10) do
+        @got_event.call(2)
+      end
 
-    lambda {
-      s.wait_events
-    }.should raise_error PeriodicScheduler::EmptyScheduleError
+      s.schedule(15) do
+        @got_event.call(3)
+      end
+
+      s.run!
+
+      @got_events.should == [1, 2, 3]
+    end
+
+    it "should call block on event error" do
+      s = PeriodicScheduler.new(5.0, @options)
+
+      s.schedule(5) do
+        raise "1"
+      end
+
+      s.schedule(10) do
+        @got_event.call(1)
+      end
+
+      s.schedule(15) do
+        raise "2"
+      end
+
+      s.schedule(15) do
+        @got_event.call(2)
+      end
+
+      @got_fails = []
+      s.run! do |error|
+        error.should be_kind_of RuntimeError
+        @got_fails << error.message
+      end
+
+      @got_fails.map{|m| m.to_i}.should == [1, 2]
+      @got_events.should == [1, 2]
+    end
   end
 end
 
