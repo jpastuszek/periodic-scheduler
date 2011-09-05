@@ -63,7 +63,10 @@ class PeriodicScheduler
   end
 
 
-  def initialize(quantum = 5.0, time_source = lambda {Time.now.to_f}, wait_function = lambda{|t| sleep t})
+  def initialize(quantum = 5.0, options = {})
+    time_source = (options[:time_source] or lambda {Time.now.to_f})
+    wait_function = (options[:wait_function] or lambda{|t| sleep t})
+
     @quantized_space = RealTimeToQuantizedSpaceProjection.new(
       quantum,
       lambda {|v| v.floor}

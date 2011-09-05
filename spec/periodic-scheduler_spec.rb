@@ -3,10 +3,12 @@ require 'periodic-scheduler'
 describe PeriodicScheduler do
   before :each do
     @time_now = 0
-    @time = lambda{@time_now}
-    @wait = lambda{|t| 
-      @time_now += t
-      #puts "sleeping for #{t}"
+    @options = {
+      :time_source => lambda{@time_now},
+      :wait_function => lambda{|t| 
+        @time_now += t
+        #puts "sleeping for #{t}"
+      }
     }
 
     @got_events = []
@@ -17,7 +19,7 @@ describe PeriodicScheduler do
   end
 
   it "should execut event callbacks given time progress" do
-    s = PeriodicScheduler.new(5.0, @time, @wait)
+    s = PeriodicScheduler.new(5.0, @options)
 
     s.schedule(11.5) do
       @got_event.call(1)
@@ -50,7 +52,7 @@ describe PeriodicScheduler do
   end
 
   it "should reschedule resheduable tasks" do
-    s = PeriodicScheduler.new(5.0, @time, @wait)
+    s = PeriodicScheduler.new(5.0, @options)
 
     s.schedule(15, true) do
       @got_event.call(1)
@@ -72,7 +74,7 @@ describe PeriodicScheduler do
   end
 
   it "should compensate for quntization error" do
-    s = PeriodicScheduler.new(5.0, @time, @wait)
+    s = PeriodicScheduler.new(5.0, @options)
 
     # Note that now we are using floor to quantize event
     s.schedule(12, true) do
@@ -115,7 +117,7 @@ describe PeriodicScheduler do
       #puts "sleeping fou #{t} + jitter #{j}: #{t + j}"
     }
 
-    s = PeriodicScheduler.new(5.0, @time, @wait)
+    s = PeriodicScheduler.new(5.0, @options)
 
     s.schedule(12, true) do
       @got_event.call(1)
@@ -167,7 +169,7 @@ describe PeriodicScheduler do
     ev2 = []
     ev2_last = 0
 
-    s = PeriodicScheduler.new(5.0, @time, @wait) 
+    s = PeriodicScheduler.new(5.0, @options) 
 
     s.schedule(ev1_val, true) do
       ev1 << @time_now - ev1_last
@@ -186,13 +188,13 @@ describe PeriodicScheduler do
   end
 
   it "should support grouping of events" do
-    s = PeriodicScheduler.new(5.0, @time, @wait)
+    s = PeriodicScheduler.new(5.0, @options)
 
     s.schedule(12, true, "test group") {}
   end
 
   it "should support unscheduling of all events within a group" do
-    s = PeriodicScheduler.new(5.0, @time, @wait)
+    s = PeriodicScheduler.new(5.0, @options)
 
     s.schedule(15, true, "g1") do
       @got_event.call(1)
@@ -238,7 +240,7 @@ describe PeriodicScheduler do
   end
 
   it "should support unscheduling of all events within a group from other event" do
-    s = PeriodicScheduler.new(1.0, @time, @wait)
+    s = PeriodicScheduler.new(1.0, @options)
 
     s.schedule(2, true, "g4") do
       s.unschedule_group("g2")
@@ -275,7 +277,7 @@ describe PeriodicScheduler do
   end
 
   it "should execut all not reschedulable tasks if we miss them" do
-    s = PeriodicScheduler.new(5.0, @time, @wait)
+    s = PeriodicScheduler.new(5.0, @options)
 
     s.schedule(15) do
       @got_event.call(1)
@@ -300,7 +302,7 @@ describe PeriodicScheduler do
 
   it "should skpi reschedulable tasks if we miss them" do
     #TODO: this behaviour is a bit of gary area
-    s = PeriodicScheduler.new(5.0, @time, @wait)
+    s = PeriodicScheduler.new(5.0, @options)
 
     s.schedule(15, true) do
       @got_event.call(1)
@@ -316,7 +318,7 @@ describe PeriodicScheduler do
   end
 
   it "should report error if the schedule was missed" do
-    s = PeriodicScheduler.new(5.0, @time, @wait)
+    s = PeriodicScheduler.new(5.0, @options)
 
     s.schedule(15) do
       @got_event.call(1)
@@ -339,12 +341,16 @@ end
 describe PeriodicScheduler, "wait_events" do
   before :each do
     @time_now = 0
-    @time = lambda{@time_now}
-    @wait = lambda{|t| @time_now += t}
+    @options = {
+      :time_source => lambda{@time_now},
+      :wait_function => lambda{|t| 
+        @time_now += t
+      }
+    }
   end
 
   it "should handle events call exceptions and return them" do
-    s = PeriodicScheduler.new(5.0, @time, @wait)
+    s = PeriodicScheduler.new(5.0, @options)
 
     s.schedule(12, true) do
       fail "test"
@@ -362,7 +368,7 @@ describe PeriodicScheduler, "wait_events" do
   end
 
   it "should return nil if there are no events left to process" do
-    s = PeriodicScheduler.new(5.0, @time, @wait)
+    s = PeriodicScheduler.new(5.0, @options)
 
     s.schedule(12) {}
 
