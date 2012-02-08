@@ -326,7 +326,11 @@ describe PeriodicScheduler do
 
     @options[:wait_function].call(35)
 
-    errors = s.run
+		errors = []
+		s.run do |error|
+			errors << error
+		end
+		
     errors.should_not be_empty
     errors[0].class.should == PeriodicScheduler::MissedScheduleError
     @got_events.should == [1, 2]
@@ -340,10 +344,12 @@ describe PeriodicScheduler do
         fail "test"
       end
 
-      errors = nil
+      errors = []
 
       lambda {
-        errors = s.run
+				s.run do |error|
+					errors << error
+				end
       }.should_not raise_exception
 
       errors.should have(1).error
@@ -364,6 +370,23 @@ describe PeriodicScheduler do
         s.run
       }.should raise_error PeriodicScheduler::EmptyScheduleError
     end
+
+		it "should provide array of objects returned by called shedule blocks" do
+			s = PeriodicScheduler.new(5.0, @options)
+
+			test = 0
+
+			s.schedule(11, true) do
+				test += 1
+			end
+
+			s.schedule(12) do
+				test += 1
+			end
+
+			s.run.should == [1, 2]
+			s.run.should == [3]
+		end
   end
 
   describe "#run!" do

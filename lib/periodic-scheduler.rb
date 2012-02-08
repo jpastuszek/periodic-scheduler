@@ -90,12 +90,10 @@ class PeriodicScheduler
     @event_groups_to_unschedule << group
   end
 
-  def run!
+  def run!(&block)
     begin
       loop do
-        run.each do |error|
-          yield error if block_given?
-        end
+        run(&block)
       end
     rescue EmptyScheduleError
     end
@@ -130,12 +128,14 @@ class PeriodicScheduler
       return run 
     end
 
+		objects = []
+
     quants.each do |q|
       events = @events[q]
       @events.delete(q)
       events.each do |e|
         begin
-          e.call
+          objects << e.call
         rescue StandardError => ex
           errors << ex
         end
@@ -143,7 +143,13 @@ class PeriodicScheduler
       end
     end
     
-    errors
+		if block_given?
+			errors.each do |error|
+				yield error
+			end
+		end
+
+		objects
   end
 
   def empty?
