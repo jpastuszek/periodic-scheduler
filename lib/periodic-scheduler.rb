@@ -121,15 +121,18 @@ class PeriodicScheduler
     end
     wait(wait_time)
 
-    qnow = quantized_now
-    quants = @events.keys.select{|k| k <= qnow}.sort
-    # It may happen that wait returned qucker than it should
-    if quants.empty?
-      return run 
-    end
-
 		objects = []
 
+    qnow = quantized_now
+    quants = @events.keys.select{|k| k <= qnow}.sort
+
+    # It may happen that wait returned qucker than it should
+		# In this case just return no data
+    if quants.empty?
+      return objects
+    end
+
+		# Call callback for every quant and reschedule if needed
     quants.each do |q|
       events = @events[q]
       @events.delete(q)
@@ -143,12 +146,14 @@ class PeriodicScheduler
       end
     end
     
+		# Yield errors to block
 		if block_given?
 			errors.each do |error|
 				yield error
 			end
 		end
 
+		# return collected callabck return objects
 		objects
   end
 

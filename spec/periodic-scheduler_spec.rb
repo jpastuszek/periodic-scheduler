@@ -110,7 +110,7 @@ describe PeriodicScheduler do
       j = jitter.shift
       #puts "time is: #{@time_now}"
       @time_now += t + j
-      #puts "sleeping fou #{t} + jitter #{j}: #{t + j}"
+      #puts "sleeping for #{t} + jitter #{j}: #{t + j}"
     }
 
     s = PeriodicScheduler.new(5.0, @options)
@@ -121,33 +121,39 @@ describe PeriodicScheduler do
 
     @got_events.should == []
 
-    s.run
+    s.run.should_not be_empty
+		@time_now.should == 11
     @got_events.should == [1]
-    @time_now.should == 11
 
-    s.run
+    s.run.should_not be_empty
+		@time_now.should == 20
     @got_events.should == [1, 1]
-    @time_now.should == 20
 
-    s.run
+    s.run.should_not be_empty
+		@time_now.should == 40
     @got_events.should == [1, 1, 1]
-    @time_now.should == 40
 
-    s.run
+		# if timer returns too quickly the run will be empty
+    s.run.should be_empty
+		@time_now.should == 44
+		@got_events.should == [1, 1, 1]
+		
+		s.run.should_not be_empty
+		@time_now.should == 45.5
     @got_events.should == [1, 1, 1, 1]
-    @time_now.should == 45.5
 
-    s.run
+		s.run.should be_empty
+    s.run.should_not be_empty
+		@time_now.should == 60
     @got_events.should == [1, 1, 1, 1, 1]
-    @time_now.should == 60
 
-    s.run
+    s.run.should_not be_empty
+		@time_now.should == 70.0
     @got_events.should == [1, 1, 1, 1, 1, 1]
-    @time_now.should == 70.0
 
-    s.run
+    s.run.should_not be_empty
+		@time_now.should == 80.0
     @got_events.should == [1, 1, 1, 1, 1, 1, 1]
-    @time_now.should == 80.0
   end
 
   it "should keep average scheduling precision over longer time" do
