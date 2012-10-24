@@ -189,24 +189,18 @@ describe PeriodicScheduler do
     (ev2.inject(0){|v, s| v + s} / ev2.length).should be_within(0.001).of(ev2_val)
   end
 
-  it "should support grouping of events" do
+  it "should support unscheduling of events" do
     s = PeriodicScheduler.new(5.0, @options)
 
-    s.schedule(12, true, "test group") {}
-  end
-
-  it "should support unscheduling of all events within a group" do
-    s = PeriodicScheduler.new(5.0, @options)
-
-    s.schedule(15, true, "g1") do
+    e1 = s.schedule(15, true) do
       @got_event.call(1)
     end
 
-    s.schedule(20, true, "g1") do
+    e2 = s.schedule(20, true) do
       @got_event.call(2)
     end
 
-    s.schedule(25, true, "g2") do
+    e3 = s.schedule(25, true) do
       @got_event.call(3)
     end
 
@@ -228,38 +222,38 @@ describe PeriodicScheduler do
     @got_events.should == [1, 2, 3, 1]
     @time_now.should == 30
 
-    s.unschedule_group("g1")
+		e1.stop
+		e2.stop
 
     s.run
     @got_events.should == [1, 2, 3, 1, 3]
-    @time_now.should == 50
+		@time_now.should == 50
 
     s.empty?.should == false
 
-    s.unschedule_group("g2")
-
+		e3.stop
     s.empty?.should == true
   end
 
-  it "should support unscheduling of all events within a group from other event" do
+  it "should support unscheduling of events from other event" do
     s = PeriodicScheduler.new(1.0, @options)
 
-    s.schedule(2, true, "g4") do
-      s.unschedule_group("g2")
-      @got_event.call(4)
-    end
-
-    s.schedule(1, true, "g1") do
+    e1 = s.schedule(1, true) do
       @got_event.call(1)
     end
 
-    s.schedule(1, true, "g2") do
+    e2 = s.schedule(1, true) do
       @got_event.call(2)
     end
 
-    s.schedule(1, true, "g2") do
+    e3 = s.schedule(1, true) do
       @got_event.call(3)
     end
+
+		e4 = s.schedule(2, true) do
+			e1.stop
+			@got_event.call(4)
+		end
 
     @got_events.should == []
 
@@ -267,14 +261,14 @@ describe PeriodicScheduler do
     @got_events.should == [1, 2, 3]
     @time_now.should == 1
 
-    # They will get executed this time
+    # Will get executed this time
     s.run
     @got_events.should == [1, 2, 3, 4, 1, 2, 3]
     @time_now.should == 2
 
-    # They should be not rescheduled and gone
+    # Should be not rescheduled
     s.run
-    @got_events.should == [1, 2, 3, 4, 1, 2, 3, 1]
+    @got_events.should == [1, 2, 3, 4, 1, 2, 3, 2, 3]
     @time_now.should == 3
   end
 

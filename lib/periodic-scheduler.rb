@@ -7,16 +7,26 @@ class PeriodicScheduler
 
   class Event
     attr_reader :period
-    attr_reader :reschedule
-    attr_reader :group
+    attr_reader :keep
     attr_reader :callback
 
-    def initialize(period, reschedule, group, callback)
+    def initialize(period, keep, callback)
       @period = period
-      @reschedule = reschedule
-      @group = group
+      @keep = keep
       @callback = callback
     end
+
+		def keep?
+			@keep
+		end
+
+		def stop
+			@stop = true
+		end
+
+		def stopped?
+			@stop
+		end
 
     def call
       @callback.call
@@ -25,14 +35,24 @@ class PeriodicScheduler
 
   class QuantizedEventBuilder
     class QuantizedEvent < Event
-      attr_reader :quantum_period
-      attr_reader :quantum_error
+			attr_reader :quantum_period
 
-      def initialize(period, reschedule, group, callback, quantum_period, quantum_error)
-        super(period, reschedule, group, callback)
-        @quantum_period = quantum_period
-        @quantum_error = quantum_error
+      def initialize(period, keep, callback, quantized_space)
+        super(period, keep, callback)
+				@quantized_space = quantized_space
+				quantatize(period)
       end
+
+			def reschedule
+				quantatize(@period + @quantum_error)
+			end
+
+			private
+
+			def quantatize(period)
+				@quantum_period = @quantized_space.project(period)
+				@quantum_error = @quantized_space.projection_error(period)
+			end
     end
 
     def initialize(quantized_space)
@@ -42,23 +62,9 @@ class PeriodicScheduler
     def from_event(event)
       QuantizedEvent.new(
         event.period,
-        event.reschedule,
-        event.group,
+        event.keep,
         event.callback,
-        @quantized_space.project(event.period),
-        @quantized_space.projection_error(event.period)
-      )
-    end
-
-    def reschedule(quantized_event)
-      accumulated_period = quantized_event.period + quantized_event.quantum_error
-      QuantizedEvent.new(
-        quantized_event.period,
-        quantized_event.reschedule,
-        quantized_event.group,
-        quantized_event.callback,
-        @quantized_space.project(accumulated_period),
-        @quantized_space.projection_error(accumulated_period)
+				@quantized_space
       )
     end
   end
@@ -77,17 +83,12 @@ class PeriodicScheduler
     @wait_function = wait_function
 
     @events = {}
-    @event_groups_to_unschedule = Set.new
   end
 
-  def schedule(period, reschedule = false, group = nil, &callback)
-    event = @quantized_event_builder.from_event(Event.new(period, reschedule, group, callback))
+  def schedule(period, keep = false, g = nil, &callback)
+    event = @quantized_event_builder.from_event(Event.new(period, keep, callback))
     period = quantized_now + event.quantum_period
     add_event(event, period)
-  end
-
-  def unschedule_group(group)
-    @event_groups_to_unschedule << group
   end
 
   def run!(&block)
@@ -100,10 +101,8 @@ class PeriodicScheduler
   end
 
   def run
-    process_unsheduled_events
-
-    earliest_quant = @events.keys.sort[0]
-    raise EmptyScheduleError, "no events scheduled" unless earliest_quant
+		earliest_quant = find_earliest_quant
+		raise EmptyScheduleError, "no events scheduled" unless earliest_quant
 
     errors = []
 
@@ -126,23 +125,17 @@ class PeriodicScheduler
     qnow = quantized_now
     quants = @events.keys.select{|k| k <= qnow}.sort
 
-    # It may happen that wait returned qucker than it should
-		# In this case just return no data
-    if quants.empty?
-      return objects
-    end
-
 		# Call callback for every quant and reschedule if needed
     quants.each do |q|
-      events = @events[q]
-      @events.delete(q)
-      events.each do |e|
+			# get all events for quantum that are not stopped
+      @events.delete(q).each do |e|
         begin
           objects << e.call
         rescue StandardError => ex
           errors << ex
         end
-        reschedule_event(e, q) if e.reschedule
+				# reschedule events unless they are not to be keept or got stopped in the mean time
+        reschedule_event(e, q) if e.keep? and not e.stopped?
       end
     end
     
@@ -158,38 +151,34 @@ class PeriodicScheduler
   end
 
   def empty?
-    # do the cleanup - this may be causing problems!
-    process_unsheduled_events
-
-    @events.empty?
+		not find_earliest_quant
   end
 
   private
 
-  def process_unsheduled_events
-    return if @event_groups_to_unschedule.empty?
-
-    new_events = {}
-
-    @events.each_pair do |quant, events|
-      evs = events.select do |event|
-        not @event_groups_to_unschedule.member?(event.group)
-      end
-
-      new_events[quant] = evs unless evs.empty?
-    end
-
-    @events = new_events
-    @event_groups_to_unschedule = Set.new
-  end
-
+	def find_earliest_quant
+		# filters quants from oldest to newest until 
+		# one that has at least one not stopped event
+		@events.keys.sort.each do |quant|
+			events = @events[quant]
+			events.delete_if{|e| e.stopped?}
+			if events.empty?
+				@events.delete(quant)
+				next
+			end
+			return quant
+		end
+		nil
+	end
+	
   def add_event(quantized_event, period)
     @events[period] = [] unless @events[period]
     @events[period] << quantized_event
+		quantized_event
   end
 
-  def reschedule_event(quantized_event, previous_run_quant)
-    event = @quantized_event_builder.reschedule(quantized_event)
+  def reschedule_event(event, previous_run_quant)
+		event.reschedule
     period = previous_run_quant + event.quantum_period
     add_event(event, period)
   end
