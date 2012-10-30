@@ -24,16 +24,16 @@ class PeriodicScheduler
 	end
 
   class Event
+		attr_reader :quantum_period
     attr_reader :period
     attr_reader :keep
     attr_reader :callback
-		attr_reader :quantum_period
 
     def initialize(quantized_space, period, keep, &callback)
+			@quantized_space = quantized_space
       @period = period
       @keep = keep
       @callback = callback
-			@quantized_space = quantized_space
 			quantatize(period)
     end
 
@@ -79,7 +79,7 @@ class PeriodicScheduler
     @events = {}
   end
 
-  def schedule(period, keep = false, g = nil, &callback)
+  def schedule(period, keep = false, &callback)
     event = Event.new(@quantized_space, period, keep, &callback)
     period = quantized_now + event.quantum_period
     add_event(event, period)
