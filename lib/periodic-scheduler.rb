@@ -1,20 +1,45 @@
-require 'quantized_time_space'
 require 'set'
 
 class PeriodicScheduler
   class MissedScheduleError < RuntimeError; end
   class EmptyScheduleError < RuntimeError; end
 
+	class RealTimeToQuantizedSpaceProjection
+		def initialize(quantum_size, quantization_rule)
+			@quantum_size = quantum_size
+			@quantization_rule = quantization_rule
+		end
+
+		def project(value)
+			@quantization_rule.call(value / @quantum_size)
+		end
+
+		def revers_project(value)
+			value * @quantum_size
+		end
+
+		def projection_error(value)
+			value - revers_project(project(value))
+		end
+	end
+
   class Event
     attr_reader :period
     attr_reader :keep
     attr_reader :callback
+		attr_reader :quantum_period
 
-    def initialize(period, keep, callback)
+    def initialize(quantized_space, period, keep, &callback)
       @period = period
       @keep = keep
       @callback = callback
+			@quantized_space = quantized_space
+			quantatize(period)
     end
+
+		def reschedule
+			quantatize(@period + @quantum_error)
+		end
 
 		def keep?
 			@keep
@@ -31,44 +56,14 @@ class PeriodicScheduler
     def call
       @callback.call
     end
+
+		private
+
+		def quantatize(period)
+			@quantum_period = @quantized_space.project(period)
+			@quantum_error = @quantized_space.projection_error(period)
+		end
   end
-
-  class QuantizedEventBuilder
-    class QuantizedEvent < Event
-			attr_reader :quantum_period
-
-      def initialize(period, keep, callback, quantized_space)
-        super(period, keep, callback)
-				@quantized_space = quantized_space
-				quantatize(period)
-      end
-
-			def reschedule
-				quantatize(@period + @quantum_error)
-			end
-
-			private
-
-			def quantatize(period)
-				@quantum_period = @quantized_space.project(period)
-				@quantum_error = @quantized_space.projection_error(period)
-			end
-    end
-
-    def initialize(quantized_space)
-      @quantized_space = quantized_space
-    end
-
-    def from_event(event)
-      QuantizedEvent.new(
-        event.period,
-        event.keep,
-        event.callback,
-				@quantized_space
-      )
-    end
-  end
-
 
   def initialize(quantum = 5.0, options = {})
     time_source = (options[:time_source] or lambda {Time.now.to_f})
@@ -78,7 +73,6 @@ class PeriodicScheduler
       quantum,
       lambda {|v| v.floor}
     )
-    @quantized_event_builder = QuantizedEventBuilder.new(@quantized_space)
     @time_source = time_source
     @wait_function = wait_function
 
@@ -86,7 +80,7 @@ class PeriodicScheduler
   end
 
   def schedule(period, keep = false, g = nil, &callback)
-    event = @quantized_event_builder.from_event(Event.new(period, keep, callback))
+    event = Event.new(@quantized_space, period, keep, &callback)
     period = quantized_now + event.quantum_period
     add_event(event, period)
   end
