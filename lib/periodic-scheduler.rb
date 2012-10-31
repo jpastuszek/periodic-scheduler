@@ -1,5 +1,3 @@
-require 'set'
-
 class PeriodicScheduler
   class MissedScheduleError < RuntimeError; end
   class EmptyScheduleError < RuntimeError; end
@@ -34,11 +32,22 @@ class PeriodicScheduler
       @period = period
       @keep = keep
       @callback = callback
+			@on_reschedule = []
+			@on_stop = []
 			quantatize(period)
     end
 
 		def reschedule
 			quantatize(@period + @quantum_error)
+
+			callbacks, @on_reschedule = @on_reschedule, []
+			callbacks.each do |callback|
+				callback.call(self)
+			end
+		end
+
+		def on_reschedule(&callback)
+			@on_reschedule << callback
 		end
 
 		def keep?
@@ -46,11 +55,17 @@ class PeriodicScheduler
 		end
 
 		def stop
-			@stop = true
+			return if @stopped
+			@stopped = true
+			@on_stop.shift.call(self) until @on_stop.empty?
 		end
 
 		def stopped?
-			@stop
+			@stopped
+		end
+
+		def on_stop(&callback)
+			@on_stop << callback
 		end
 
     def call
@@ -64,6 +79,13 @@ class PeriodicScheduler
 			@quantum_error = @quantized_space.projection_error(period)
 		end
   end
+
+	class QuantumSpace
+		def initialize
+			@quant_events = {}
+		end
+
+	end
 
   def initialize(quantum = 5.0, options = {})
     time_source = (options[:time_source] or lambda {Time.now.to_f})
@@ -80,10 +102,25 @@ class PeriodicScheduler
   end
 
   def schedule(period, keep = false, &callback)
-    event = Event.new(@quantized_space, period, keep, &callback)
-    period = quantized_now + event.quantum_period
-    add_event(event, period)
+		schedule_event Event.new(@quantized_space, period, keep, &callback)
   end
+
+	def schedule_event(event, from = quantized_now)
+		quant = from + event.quantum_period
+		(@events[quant] ||= []) << event
+
+		event.on_reschedule do |event|
+			@events[quant].delete(event) if @events.include? quant
+			# schedule from scheduled execution quant that may be missed
+			schedule_event(event, quant)
+		end
+
+		event.on_stop do |event|
+			@events[quant].delete(event) if @events.include? quant
+		end
+
+		event
+	end
 
   def run!(&block)
     begin
@@ -129,7 +166,7 @@ class PeriodicScheduler
           errors << ex
         end
 				# reschedule events unless they are not to be keept or got stopped in the mean time
-        reschedule_event(e, q) if e.keep? and not e.stopped?
+        e.reschedule if e.keep? and not e.stopped?
       end
     end
     
@@ -165,18 +202,6 @@ class PeriodicScheduler
 		nil
 	end
 	
-  def add_event(quantized_event, period)
-    @events[period] = [] unless @events[period]
-    @events[period] << quantized_event
-		quantized_event
-  end
-
-  def reschedule_event(event, previous_run_quant)
-		event.reschedule
-    period = previous_run_quant + event.quantum_period
-    add_event(event, period)
-  end
-
   def wait(time)
     fail "time must be a positive number" if time < 0
     @wait_function.call(time)
