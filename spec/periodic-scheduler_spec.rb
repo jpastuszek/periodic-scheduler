@@ -21,15 +21,15 @@ describe PeriodicScheduler do
   it "should execut event callbacks given time progress" do
     s = PeriodicScheduler.new(5.0, @options)
 
-    s.schedule(9.5) do
+    s.after(9.5) do
       @got_event.call(1)
     end
 
-    s.schedule(14) do
+    s.after(14) do
       @got_event.call(2)
     end
 
-    s.schedule(20) do
+    s.after(20) do
       @got_event.call(3)
     end
 
@@ -54,7 +54,7 @@ describe PeriodicScheduler do
   it "should reschedule resheduable tasks" do
     s = PeriodicScheduler.new(5.0, @options)
 
-    s.schedule(15, true) do
+    s.every(15) do
       @got_event.call(1)
     end
 
@@ -76,7 +76,7 @@ describe PeriodicScheduler do
   it "should compensate for quntization error" do
     s = PeriodicScheduler.new(5.0, @options)
 
-    s.schedule(12, true) do
+    s.every(12) do
       @got_event.call(1)
     end
 
@@ -118,7 +118,7 @@ describe PeriodicScheduler do
 
     s = PeriodicScheduler.new(5.0, @options)
 
-    s.schedule(12, true) do
+    s.every(12) do
       @got_event.call(1)
     end
 
@@ -176,12 +176,12 @@ describe PeriodicScheduler do
 
     s = PeriodicScheduler.new(5.0, @options) 
 
-    s.schedule(ev1_val, true) do
+    s.every(ev1_val) do
       ev1 << @time_now - ev1_last
       ev1_last = @time_now
     end
 
-    s.schedule(ev2_val, true) do
+    s.every(ev2_val) do
       ev2 << @time_now - ev2_last
       ev2_last = @time_now
     end
@@ -195,15 +195,15 @@ describe PeriodicScheduler do
   it "should support unscheduling of events" do
     s = PeriodicScheduler.new(5.0, @options)
 
-    e1 = s.schedule(15, true) do
+    e1 = s.every(15) do
       @got_event.call(1)
     end
 
-    e2 = s.schedule(20, true) do
+    e2 = s.every(20) do
       @got_event.call(2)
     end
 
-    e3 = s.schedule(25, true) do
+    e3 = s.every(25) do
       @got_event.call(3)
     end
 
@@ -241,19 +241,19 @@ describe PeriodicScheduler do
   it "should support unscheduling of events from other event" do
     s = PeriodicScheduler.new(1.0, @options)
 
-    e1 = s.schedule(1, true) do
+    e1 = s.every(1) do
       @got_event.call(1)
     end
 
-    e2 = s.schedule(1, true) do
+    e2 = s.every(1) do
       @got_event.call(2)
     end
 
-    e3 = s.schedule(1, true) do
+    e3 = s.every(1) do
       @got_event.call(3)
     end
 
-		e4 = s.schedule(2, true) do
+		e4 = s.every(2) do
 			e1.stop
 			@got_event.call(4)
 		end
@@ -278,15 +278,15 @@ describe PeriodicScheduler do
   it "should execut all not reschedulable tasks if we miss them" do
     s = PeriodicScheduler.new(5.0, @options)
 
-    s.schedule(15) do
+    s.after(15) do
       @got_event.call(1)
     end
 
-    s.schedule(30) do
+    s.after(30) do
       @got_event.call(2)
     end
 
-    s.schedule(45) do
+    s.after(45) do
       @got_event.call(3)
     end
 
@@ -303,7 +303,7 @@ describe PeriodicScheduler do
     #TODO: this behaviour is a bit of gary area
     s = PeriodicScheduler.new(5.0, @options)
 
-    s.schedule(15, true) do
+    s.every(15) do
       @got_event.call(1)
     end
 
@@ -319,11 +319,11 @@ describe PeriodicScheduler do
   it "should report error if the schedule was missed" do
     s = PeriodicScheduler.new(5.0, @options)
 
-    s.schedule(15) do
+    s.after(15) do
       @got_event.call(1)
     end
 
-    s.schedule(30) do
+    s.after(30) do
       @got_event.call(2)
     end
 
@@ -343,7 +343,7 @@ describe PeriodicScheduler do
     it "should handle events call exceptions and return them" do
       s = PeriodicScheduler.new(5.0, @options)
 
-      s.schedule(12, true) do
+      s.every(12) do
         fail "test"
       end
 
@@ -363,7 +363,7 @@ describe PeriodicScheduler do
     it "should raise PeriodicScheduler::EmptyScheduleError if there are no events left to process" do
       s = PeriodicScheduler.new(5.0, @options)
 
-      s.schedule(12) {}
+      s.after(12) {}
 
       lambda {
         s.run
@@ -379,11 +379,11 @@ describe PeriodicScheduler do
 
 			test = 0
 
-			s.schedule(11, true) do
+			s.every(11) do
 				test += 1
 			end
 
-			s.schedule(12) do
+			s.after(12) do
 				test += 1
 			end
 
@@ -396,15 +396,15 @@ describe PeriodicScheduler do
     it "should run schedule until there is no more events sheduled" do
       s = PeriodicScheduler.new(5.0, @options)
 
-      s.schedule(5) do
+      s.after(5) do
         @got_event.call(1)
       end
 
-      s.schedule(10) do
+      s.after(10) do
         @got_event.call(2)
       end
 
-      s.schedule(15) do
+      s.after(15) do
         @got_event.call(3)
       end
 
@@ -416,19 +416,19 @@ describe PeriodicScheduler do
     it "should call block on event error" do
       s = PeriodicScheduler.new(5.0, @options)
 
-      s.schedule(5) do
+      s.after(5) do
         raise "1"
       end
 
-      s.schedule(10) do
+      s.after(10) do
         @got_event.call(1)
       end
 
-      s.schedule(15) do
+      s.after(15) do
         raise "2"
       end
 
-      s.schedule(15) do
+      s.after(15) do
         @got_event.call(2)
       end
 

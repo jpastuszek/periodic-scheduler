@@ -88,9 +88,13 @@ class PeriodicScheduler
     @events = {}
   end
 
-  def schedule(period, keep = false, &callback)
-		schedule_event Event.new(@quantized_space, period, keep, &callback)
-  end
+	def after(period, &callback)
+		schedule_event Event.new(@quantized_space, period, false, &callback)
+	end
+
+	def every(period, &callback)
+		schedule_event Event.new(@quantized_space, period, true, &callback)
+	end
 
   def run!(&block)
     begin
