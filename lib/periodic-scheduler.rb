@@ -105,18 +105,15 @@ class PeriodicScheduler
 		earliest_quant = @events.keys.sort.first
 		raise EmptyScheduleError, "no events scheduled" unless earliest_quant
 
-    errors = []
-
     wait_time = @quantized_space.revers_project(earliest_quant) - real_now
     if wait_time < 0
       # we have missed our scheduled period
       begin
         # we raise it so it has proper content (backtrace)
         raise MissedScheduleError.new("missed schedule by #{-wait_time} seconds")
-      rescue StandardError => ex
-        errors << ex
+      rescue StandardError => error
+				yield error if block_given?
       end
-
       wait_time = 0
     end
     wait(wait_time)
@@ -135,18 +132,12 @@ class PeriodicScheduler
         begin
           objects << e.call
         rescue StandardError => error
-          errors << error
+					# Yield errors to block
+					yield error if block_given?
         end
         e.reschedule if e.keep? and not e.stopped?
       end
     end
-    
-		# Yield errors to block
-		if block_given?
-			errors.each do |error|
-				yield error
-			end
-		end
 
 		# return collected callabck return objects
 		objects
