@@ -74,13 +74,6 @@ class PeriodicScheduler
 		end
   end
 
-	class QuantumSpace
-		def initialize
-			@quant_events = {}
-		end
-
-	end
-
   def initialize(quantum = 5.0, options = {})
     time_source = (options[:time_source] or lambda {Time.now.to_f})
     wait_function = (options[:wait_function] or lambda{|t| sleep t})
@@ -98,25 +91,6 @@ class PeriodicScheduler
   def schedule(period, keep = false, &callback)
 		schedule_event Event.new(@quantized_space, period, keep, &callback)
   end
-
-	def schedule_event(event, from = quantized_now)
-		quant = from + event.quantum_period
-		(@events[quant] ||= []) << event
-
-		event.reschedule_hook do |event|
-			@events[quant].delete(event) if @events.include? quant
-			@events.delete(quant) if @events[quant] and @events[quant].empty?
-			# schedule from scheduled execution quant that may be missed
-			schedule_event(event, quant)
-		end
-
-		event.stop_hook do |event|
-			@events[quant].delete(event) if @events.include? quant
-			@events.delete(quant) if @events[quant] and @events[quant].empty?
-		end
-
-		event
-	end
 
   def run!(&block)
     begin
@@ -150,16 +124,18 @@ class PeriodicScheduler
 		objects = []
 
     qnow = quantized_now
-    quants = @events.keys.select{|k| k <= qnow}.sort
+
+		# move quants to be run away to separate array
+    quants = @events.keys.select{|k| k <= qnow}.sort.map{|q| @events.delete(q)}
 
 		# Call callback for every quant and reschedule if needed
-    quants.each do |q|
+    quants.each do |events|
 			# get all events for quantum that are not stopped
-      @events.delete(q).each do |e|
+      events.each do |e|
         begin
           objects << e.call
-        rescue StandardError => ex
-          errors << ex
+        rescue StandardError => error
+          errors << error
         end
         e.reschedule if e.keep? and not e.stopped?
       end
@@ -181,6 +157,28 @@ class PeriodicScheduler
   end
 
   private
+
+	def schedule_event(event, from = quantized_now)
+		quant = from + event.quantum_period
+		(@events[quant] ||= []) << event
+
+		event.reschedule_hook do |event|
+			unschedule_event(event, quant)
+			schedule_event(event, quant)
+		end
+
+		event.stop_hook do |event|
+			unschedule_event(event, quant)
+		end
+
+		event
+	end
+
+	def unschedule_event(event, quant)
+		return unless @events[quant]
+		@events[quant].delete(event)
+		@events.delete(quant) if @events[quant].empty?
+	end
 
   def wait(time)
     fail "time must be a positive number" if time < 0
