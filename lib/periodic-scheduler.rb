@@ -80,7 +80,7 @@ class PeriodicScheduler
 
     @quantized_space = RealTimeToQuantizedSpaceProjection.new(
       quantum,
-      lambda {|v| v.floor}
+      lambda {|v| v.ceil} # behave like sleep - never execute too early
     )
     @time_source = time_source
     @wait_function = wait_function

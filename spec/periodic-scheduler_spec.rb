@@ -21,7 +21,7 @@ describe PeriodicScheduler do
   it "should execut event callbacks given time progress" do
     s = PeriodicScheduler.new(5.0, @options)
 
-    s.schedule(11.5) do
+    s.schedule(9.5) do
       @got_event.call(1)
     end
 
@@ -37,12 +37,16 @@ describe PeriodicScheduler do
     s.empty?.should == false
 
     s.run
-    @got_events.should == [1, 2]
+    @got_events.should == [1]
     @time_now.should == 10.0
 
     s.run
-    @got_events.should == [1, 2, 3]
-    @time_now.should == 20.0
+    @got_events.should == [1, 2]
+    @time_now.should == 15.0
+
+		s.run
+		@got_events.should == [1, 2, 3]
+		@time_now.should == 20.0
 
     s.empty?.should == true
   end
@@ -72,7 +76,6 @@ describe PeriodicScheduler do
   it "should compensate for quntization error" do
     s = PeriodicScheduler.new(5.0, @options)
 
-    # Note that now we are using floor to quantize event
     s.schedule(12, true) do
       @got_event.call(1)
     end
@@ -81,19 +84,19 @@ describe PeriodicScheduler do
 
     s.run
     @got_events.should == [1]
-    @time_now.should == 10
+    @time_now.should == 15
 
     s.run
     @got_events.should == [1, 1]
-    @time_now.should == 20
+    @time_now.should == 25
 
     s.run
     @got_events.should == [1, 1, 1]
-    @time_now.should == 35
+    @time_now.should == 40
 
     s.run
     @got_events.should == [1, 1, 1, 1]
-    @time_now.should == 45
+    @time_now.should == 50
 
     s.run
     @got_events.should == [1, 1, 1, 1, 1]
@@ -101,11 +104,11 @@ describe PeriodicScheduler do
 
     s.run
     @got_events.should == [1, 1, 1, 1, 1, 1]
-    @time_now.should == 70
+    @time_now.should == 75
   end
 
   it "should compensate for wait function jitter" do
-    jitter = [1, 0, 5, -1, 0.5, -0.2, 0, 0, 0]
+    jitter = [1, 0, 5, -5, 0.5, -0.2, 0, 0, 0]
     @options[:wait_function] = lambda{|t| 
       j = jitter.shift
       #puts "time is: #{@time_now}"
@@ -122,37 +125,37 @@ describe PeriodicScheduler do
     @got_events.should == []
 
     s.run.should_not be_empty
-		@time_now.should == 11
+		@time_now.should == 16
     @got_events.should == [1]
 
     s.run.should_not be_empty
-		@time_now.should == 20
+		@time_now.should == 25
     @got_events.should == [1, 1]
 
     s.run.should_not be_empty
-		@time_now.should == 40
+		@time_now.should == 45
     @got_events.should == [1, 1, 1]
 
 		# if timer returns too quickly the run will be empty
     s.run.should be_empty
-		@time_now.should == 44
+		@time_now.should == 45
 		@got_events.should == [1, 1, 1]
 		
 		s.run.should_not be_empty
-		@time_now.should == 45.5
+		@time_now.should == 50.5
     @got_events.should == [1, 1, 1, 1]
 
-		s.run.should be_empty
+		# now the jitter is too small to not progress the quant
     s.run.should_not be_empty
-		@time_now.should == 60
+		@time_now.should == 59.8
     @got_events.should == [1, 1, 1, 1, 1]
 
     s.run.should_not be_empty
-		@time_now.should == 70.0
+		@time_now.should == 75.0
     @got_events.should == [1, 1, 1, 1, 1, 1]
 
     s.run.should_not be_empty
-		@time_now.should == 80.0
+		@time_now.should == 85.0
     @got_events.should == [1, 1, 1, 1, 1, 1, 1]
   end
 
