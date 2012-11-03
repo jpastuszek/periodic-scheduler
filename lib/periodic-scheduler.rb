@@ -32,22 +32,16 @@ class PeriodicScheduler
       @period = period
       @keep = keep
       @callback = callback
-			@on_reschedule = []
-			@on_stop = []
 			quantatize(period)
     end
 
 		def reschedule
 			quantatize(@period + @quantum_error)
-
-			callbacks, @on_reschedule = @on_reschedule, []
-			callbacks.each do |callback|
-				callback.call(self)
-			end
+			@reschedule_hook.call(self) if @reschedule_hook
 		end
 
-		def on_reschedule(&callback)
-			@on_reschedule << callback
+		def reschedule_hook(&callback)
+			@reschedule_hook = callback
 		end
 
 		def keep?
@@ -57,15 +51,15 @@ class PeriodicScheduler
 		def stop
 			return if @stopped
 			@stopped = true
-			@on_stop.shift.call(self) until @on_stop.empty?
+			@stop_hook.call(self) if @reschedule_hook
 		end
 
 		def stopped?
 			@stopped
 		end
 
-		def on_stop(&callback)
-			@on_stop << callback
+		def stop_hook(&callback)
+			@stop_hook = callback
 		end
 
     def call
@@ -109,14 +103,16 @@ class PeriodicScheduler
 		quant = from + event.quantum_period
 		(@events[quant] ||= []) << event
 
-		event.on_reschedule do |event|
+		event.reschedule_hook do |event|
 			@events[quant].delete(event) if @events.include? quant
+			@events.delete(quant) if @events[quant] and @events[quant].empty?
 			# schedule from scheduled execution quant that may be missed
 			schedule_event(event, quant)
 		end
 
-		event.on_stop do |event|
+		event.stop_hook do |event|
 			@events[quant].delete(event) if @events.include? quant
+			@events.delete(quant) if @events[quant] and @events[quant].empty?
 		end
 
 		event
@@ -132,7 +128,7 @@ class PeriodicScheduler
   end
 
   def run
-		earliest_quant = find_earliest_quant
+		earliest_quant = @events.keys.sort.first
 		raise EmptyScheduleError, "no events scheduled" unless earliest_quant
 
     errors = []
@@ -165,7 +161,6 @@ class PeriodicScheduler
         rescue StandardError => ex
           errors << ex
         end
-				# reschedule events unless they are not to be keept or got stopped in the mean time
         e.reschedule if e.keep? and not e.stopped?
       end
     end
@@ -182,26 +177,11 @@ class PeriodicScheduler
   end
 
   def empty?
-		not find_earliest_quant
+		@events.empty?
   end
 
   private
 
-	def find_earliest_quant
-		# filters quants from oldest to newest until 
-		# one that has at least one not stopped event
-		@events.keys.sort.each do |quant|
-			events = @events[quant]
-			events.delete_if{|e| e.stopped?}
-			if events.empty?
-				@events.delete(quant)
-				next
-			end
-			return quant
-		end
-		nil
-	end
-	
   def wait(time)
     fail "time must be a positive number" if time < 0
     @wait_function.call(time)
