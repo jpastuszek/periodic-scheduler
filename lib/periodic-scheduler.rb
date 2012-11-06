@@ -33,7 +33,7 @@ class PeriodicScheduler
 			@run_time = now + period
       @keep = keep
       @callback = callback
-			quantatize(period)
+			quantatize(@run_time)
     end
 
 		def reschedule(qnow)
