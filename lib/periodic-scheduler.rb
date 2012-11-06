@@ -27,16 +27,22 @@ class PeriodicScheduler
     attr_reader :keep
     attr_reader :callback
 
-    def initialize(quantized_space, period, keep, &callback)
+    def initialize(quantized_space, now, period, keep, &callback)
 			@quantized_space = quantized_space
       @period = period
+			@run_time = now + period
       @keep = keep
       @callback = callback
 			quantatize(period)
     end
 
-		def reschedule
-			quantatize(@period + @quantum_error)
+		def reschedule(qnow)
+			# keep rescheduling until we get it scheduled in future quant
+			until @quantum_period > qnow
+				@run_time += @period
+				quantatize(@run_time)
+			end
+
 			@reschedule_hook.call(self) if @reschedule_hook
 		end
 
@@ -70,7 +76,6 @@ class PeriodicScheduler
 
 		def quantatize(period)
 			@quantum_period = @quantized_space.project(period)
-			@quantum_error = @quantized_space.projection_error(period)
 		end
   end
 
@@ -89,11 +94,11 @@ class PeriodicScheduler
   end
 
 	def after(period, &callback)
-		schedule_event Event.new(@quantized_space, period, false, &callback)
+		schedule_event Event.new(@quantized_space, real_now, period, false, &callback)
 	end
 
 	def every(period, &callback)
-		schedule_event Event.new(@quantized_space, period, true, &callback)
+		schedule_event Event.new(@quantized_space, real_now, period, true, &callback)
 	end
 
   def run!(&block)
@@ -110,16 +115,7 @@ class PeriodicScheduler
 		raise EmptyScheduleError, "no events scheduled" unless earliest_quant
 
     wait_time = @quantized_space.revers_project(earliest_quant) - real_now
-    if wait_time < 0
-      # we have missed our scheduled period
-      begin
-        # we raise it so it has proper content (backtrace)
-        raise MissedScheduleError.new("missed schedule by #{-wait_time} seconds")
-      rescue StandardError => error
-				yield error if block_given?
-      end
-      wait_time = 0
-    end
+		wait_time = 0 if wait_time < 0
     wait(wait_time)
 
 		objects = []
@@ -128,6 +124,16 @@ class PeriodicScheduler
 
 		# move quants to be run away to separate array
     quants = @events.keys.select{|k| k <= qnow}.sort.map{|q| @events.delete(q)}
+
+		# we have missed one or more scheduled quants
+		if quants.length > 1
+      begin
+        # we raise it so it has proper backtrace
+        raise MissedScheduleError.new("missed schedule by #{-wait_time} seconds")
+      rescue StandardError => error
+				yield error if block_given?
+      end
+    end
 
 		# Call callback for every quant and reschedule if needed
     quants.each do |events|
@@ -139,7 +145,7 @@ class PeriodicScheduler
 					# Yield errors to block
 					yield error if block_given?
         end
-        e.reschedule if e.keep? and not e.stopped?
+        e.reschedule(quantized_now) if e.keep? and not e.stopped?
       end
     end
 
@@ -153,13 +159,13 @@ class PeriodicScheduler
 
   private
 
-	def schedule_event(event, from = quantized_now)
-		quant = from + event.quantum_period
+	def schedule_event(event)
+		quant = event.quantum_period
 		(@events[quant] ||= []) << event
 
 		event.reschedule_hook do |event|
 			unschedule_event(event, quant)
-			schedule_event(event, quant)
+			schedule_event(event)
 		end
 
 		event.stop_hook do |event|

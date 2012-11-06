@@ -275,7 +275,7 @@ describe PeriodicScheduler do
     @time_now.should == 3
   end
 
-  it "should execut all not reschedulable tasks if we miss them" do
+  it "should not miss any scheduled tasks" do
     s = PeriodicScheduler.new(5.0, @options)
 
     s.after(15) do
@@ -286,7 +286,7 @@ describe PeriodicScheduler do
       @got_event.call(2)
     end
 
-    s.after(45) do
+    s.after(40) do
       @got_event.call(3)
     end
 
@@ -299,21 +299,34 @@ describe PeriodicScheduler do
     @got_events.should == [1, 2, 3]
   end
 
-  it "should skpi reschedulable tasks if we miss them" do
-    #TODO: this behaviour is a bit of gary area
-    s = PeriodicScheduler.new(5.0, @options)
+  it "should call reschedulable tasks only once every run" do
+		s = PeriodicScheduler.new(5.0, @options)
 
-    s.every(15) do
-      @got_event.call(1)
-    end
+		s.every(15) do
+			@got_event.call(1)
+		end
 
-    @options[:wait_function].call(35)
+		s.every(30) do
+			@got_event.call(2)
+		end
 
-    s.run.should
-    @got_events.should == [1]
+		s.every(40) do
+			@got_event.call(3)
+		end
 
-    s.run.should
-    @got_events.should == [1, 1]
+		@options[:wait_function].call(35)
+
+		# 15, 30 executed, 15 -> 45
+		s.run.should
+		@got_events.should == [1, 2]
+
+		# 40
+		s.run.should
+		@got_events.should == [1, 2, 3]
+
+		# 45
+		s.run.should
+		@got_events.should == [1, 2, 3, 1]
   end
 
   it "should report error if the schedule was missed" do
